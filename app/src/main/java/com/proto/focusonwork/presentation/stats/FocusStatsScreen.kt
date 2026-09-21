@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,7 +27,9 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.proto.focusonwork.data.local.SessionLogEntity
 import com.proto.focusonwork.ui.theme.FocusIndigo
 import com.proto.focusonwork.ui.theme.FocusLavender
@@ -46,7 +49,9 @@ fun FocusStatsScreen(
     val focusedMinutes = sessions.sumOf { it.durationMinutes }
     val averageMinutes = if (sessions.isEmpty()) 0 else focusedMinutes / sessions.size
     val dailyMinutes = lastSevenDays(sessions)
-    val protectedApps = protectedAppNames.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "your selected apps"
+    val totalBlockedApps = sessions.sumOf { it.blockedAppCount }
+    val protectedApps = protectedAppNames.takeIf { it.isNotEmpty() }?.joinToString(", ")
+        ?: if (totalBlockedApps > 0) "$totalBlockedApps app protections" else "your selected apps"
 
     Column(modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -67,7 +72,7 @@ fun FocusStatsScreen(
             Column(Modifier.padding(18.dp)) {
                 Text("Your focus, day by day", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text("Minutes protected in the last 7 days", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                FocusTrendChart(dailyMinutes, Modifier.fillMaxWidth().height(190.dp).padding(top = 14.dp))
+                FocusTrendChart(dailyMinutes, Modifier.fillMaxWidth().height(250.dp).padding(top = 14.dp))
             }
         }
         Card(Modifier.fillMaxWidth().padding(top = 12.dp), shape = RoundedCornerShape(18.dp)) {
@@ -97,22 +102,24 @@ fun FocusStatsScreen(
 
 @Composable
 private fun FocusTrendChart(values: List<Int>, modifier: Modifier = Modifier) {
-    val maxValue = (values.maxOrNull() ?: 1).coerceAtLeast(1)
-    Canvas(modifier) {
-        val step = size.width / (values.size - 1).coerceAtLeast(1)
-        val points = values.mapIndexed { index, value ->
-            Offset(index * step, size.height - (value / maxValue.toFloat()) * size.height)
+    val maxValue = (values.maxOrNull() ?: 0).coerceAtLeast(15)
+    val labels = listOf("6d", "5d", "4d", "3d", "2d", "Yesterday", "Today")
+    Column(modifier) {
+        Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
+            values.forEachIndexed { index, value ->
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
+                    Text("${value}m", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = FocusIndigo)
+                    Spacer(Modifier.height(6.dp))
+                    Card(
+                        Modifier.fillMaxWidth().height((value.toFloat() / maxValue * 150f).coerceAtLeast(10f).dp),
+                        shape = RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp),
+                        colors = CardDefaults.cardColors(containerColor = FocusIndigo)
+                    ) {}
+                }
+            }
         }
-        for (line in 1..3) {
-            val y = size.height * line / 4f
-            drawLine(Color.White.copy(alpha = .8f), Offset(0f, y), Offset(size.width, y), 1f)
-        }
-        if (points.size > 1) {
-            val fill = Path().apply { moveTo(points.first().x, size.height); points.forEach { lineTo(it.x, it.y) }; lineTo(points.last().x, size.height); close() }
-            drawPath(fill, Brush.verticalGradient(listOf(FocusIndigo.copy(alpha = .32f), Color.Transparent)))
-            val line = Path().apply { moveTo(points.first().x, points.first().y); points.drop(1).forEach { lineTo(it.x, it.y) } }
-            drawPath(line, FocusIndigo, style = Stroke(width = 6f, cap = StrokeCap.Round))
-            points.forEach { drawCircle(FocusIndigo, 7f, it); drawCircle(Color.White, 3f, it) }
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            labels.forEach { label -> Text(label, Modifier.weight(1f), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center) }
         }
     }
 }

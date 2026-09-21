@@ -4,6 +4,11 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.graphics.Color as AndroidColor
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
 import com.proto.focusonwork.security.PinManager
 import com.proto.focusonwork.system.PermissionManager
 import android.graphics.Bitmap
@@ -49,6 +54,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -70,7 +76,16 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Checkbox
+import androidx.compose.ui.viewinterop.AndroidView
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdSize
+import com.google.android.gms.ads.AdView
+import com.google.android.gms.ads.nativead.NativeAd
+import com.google.android.gms.ads.nativead.NativeAdView
+import com.google.android.gms.ads.AdListener
+import com.google.android.gms.ads.AdLoader
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.geometry.Offset
 import com.proto.focusonwork.ui.theme.FocusAmber
 import com.proto.focusonwork.ui.theme.FocusIndigo
@@ -78,8 +93,10 @@ import com.proto.focusonwork.ui.theme.FocusLavender
 import com.proto.focusonwork.ui.theme.FocusOnWorkTheme
 import com.proto.focusonwork.ui.theme.FocusPink
 import com.proto.focusonwork.ui.theme.FocusViolet
+import com.proto.focusonwork.data.local.SessionLogRepository
 import com.proto.focusonwork.presentation.session.formatRemaining
 import com.proto.focusonwork.presentation.session.remainingSeconds
+import com.proto.focusonwork.presentation.stats.FocusStatsScreen
 import com.proto.focusonwork.service.FocusMonitorService
 import com.proto.focusonwork.presentation.onboarding.PermissionDialog
 import kotlinx.coroutines.delay
@@ -126,21 +143,32 @@ class MainActivity : ComponentActivity() {
 fun FocusOnWorkApp() {
     val context = LocalContext.current
     val installedApps = remember { loadInstalledApps(context) }
+    val sessionLogRepository = remember { SessionLogRepository(context) }
+    val completedSessions by sessionLogRepository.completedSessions.collectAsState(initial = emptyList())
     var selectedDuration by remember { mutableIntStateOf(45) }
     var selectedPackages by remember { mutableStateOf(setOf<String>()) }
     var lockedPackages by remember { mutableStateOf<Set<String>>(emptySet()) }
     var isSessionActive by remember { mutableStateOf(false) }
     var sessionEndsAtMillis by remember { mutableLongStateOf(0L) }
+    var sessionStartedAtMillis by remember { mutableLongStateOf(0L) }
     var secondsRemaining by remember { mutableLongStateOf(0L) }
     var showAppPicker by remember { mutableStateOf(false) }
+    var showHistory by remember { mutableStateOf(false) }
 
     LaunchedEffect(isSessionActive, sessionEndsAtMillis) {
         while (isSessionActive) {
             secondsRemaining = remainingSeconds(sessionEndsAtMillis, System.currentTimeMillis())
             if (secondsRemaining <= 0L) {
+                val completedBlockedAppCount = lockedPackages.size
                 isSessionActive = false
                 lockedPackages = emptySet()
                 context.stopService(Intent(context, FocusMonitorService::class.java))
+                sessionLogRepository.recordCompletedSession(
+                    startedAtMillis = sessionStartedAtMillis,
+                    endedAtMillis = sessionEndsAtMillis,
+                    durationMinutes = selectedDuration,
+                    blockedAppCount = completedBlockedAppCount
+                )
                 break
             }
             delay(1_000L)
@@ -152,6 +180,19 @@ fun FocusOnWorkApp() {
 
     val selectedApps = selectedPackages.size
     val totalSessionSeconds = selectedDuration * 60L
+
+    if (showHistory) {
+        Column(Modifier.fillMaxSize()) {
+            FocusStatsScreen(
+                sessions = completedSessions,
+                protectedAppNames = installedApps.filter { it.packageName in selectedPackages }.map { it.label },
+                onBack = { showHistory = false },
+                modifier = Modifier.weight(1f)
+            )
+            BannerAd()
+        }
+        return
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -169,6 +210,7 @@ fun FocusOnWorkApp() {
                 },
                 modifier = Modifier.padding(padding)
             )
+            BannerAd()
         } else {
             DashboardScreen(
                 selectedDuration = selectedDuration,
@@ -191,7 +233,8 @@ fun FocusOnWorkApp() {
                         }
                         else -> {
                             lockedPackages = selectedPackages.toSet()
-                            sessionEndsAtMillis = System.currentTimeMillis() + selectedDuration * 60_000L
+                            sessionStartedAtMillis = System.currentTimeMillis()
+                            sessionEndsAtMillis = sessionStartedAtMillis + selectedDuration * 60_000L
                             secondsRemaining = selectedDuration * 60L
                             isSessionActive = true
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -217,8 +260,10 @@ fun FocusOnWorkApp() {
                 selectedAppNames = installedApps.filter { it.packageName in selectedPackages }.map { it.label },
                 pinConfigured = PinManager(context).hasPin(),
                 onConfigurePin = { showPinSetup = true },
+                onOpenHistory = { showHistory = true },
                 modifier = Modifier.padding(padding)
             )
+            BannerAd()
         }
     }
 
@@ -282,6 +327,7 @@ private fun DashboardScreen(
     onStartFocus: () -> Unit,
     pinConfigured: Boolean,
     onConfigurePin: () -> Unit,
+    onOpenHistory: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -294,14 +340,14 @@ private fun DashboardScreen(
                 Text("FOCUS ON WORK", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                 Text("Reclaim your focus", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             }
-            IconButton(onClick = { }) { Text("⚙", fontSize = 24.sp) }
+            IconButton(onClick = onOpenHistory) { Text("▥", fontSize = 24.sp, color = FocusIndigo) }
         }
 
         TimerCard(selectedDuration)
 
         Text("Focus duration", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(listOf(15, 25, 45, 60, 120)) { minutes ->
+            items(listOf(2, 5, 10, 15, 25, 45, 60, 120)) { minutes ->
                 FilterChip(
                     selected = selectedDuration == minutes,
                     onClick = { onDurationSelected(minutes) },
@@ -496,6 +542,64 @@ private fun ActiveSessionScreen(
         Text("$blockedApps apps silenced", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(36.dp))
         TextButton(onClick = onEndSession) { Text("End session") }
+        NativeAdBanner()
+    }
+}
+
+@Composable
+private fun BannerAd() {
+    AndroidView(
+        modifier = Modifier.fillMaxWidth().height(50.dp),
+        factory = { context ->
+            AdView(context).apply {
+                setAdSize(AdSize.BANNER)
+                adUnitId = "ca-app-pub-3940256099942544/6300978111"
+                loadAd(AdRequest.Builder().build())
+            }
+        },
+        update = { it.resume() }
+    )
+}
+
+@Composable
+private fun NativeAdBanner() {
+    var nativeAd by remember { mutableStateOf<NativeAd?>(null) }
+    val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        AdLoader.Builder(context, "ca-app-pub-3940256099942544/2247696110")
+            .forNativeAd { ad -> nativeAd?.destroy(); nativeAd = ad }
+            .withAdListener(object : AdListener() {})
+            .build()
+            .loadAd(AdRequest.Builder().build())
+    }
+    DisposableEffect(nativeAd) {
+        onDispose { nativeAd?.destroy() }
+    }
+    nativeAd?.let { ad ->
+        AndroidView(
+            modifier = Modifier.fillMaxWidth().height(92.dp).padding(horizontal = 12.dp),
+            factory = { viewContext ->
+                NativeAdView(viewContext).apply {
+                    val content = LinearLayout(viewContext).apply {
+                        orientation = LinearLayout.VERTICAL
+                        setPadding(16, 8, 16, 8)
+                        setBackgroundColor(AndroidColor.argb(18, 70, 70, 90))
+                    }
+                    val headline = TextView(viewContext).apply { textSize = 16f; setTextColor(AndroidColor.BLACK) }
+                    val body = TextView(viewContext).apply { textSize = 12f; setTextColor(AndroidColor.DKGRAY) }
+                    content.addView(headline)
+                    content.addView(body)
+                    addView(content, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                    headlineView = headline
+                    bodyView = body
+                }
+            },
+            update = { view ->
+                (view.headlineView as? TextView)?.text = ad.headline
+                (view.bodyView as? TextView)?.text = ad.body
+                view.setNativeAd(ad)
+            }
+        )
     }
 }
 
