@@ -10,5 +10,6 @@ data class SessionLogEntity(
     val endedAtMillis: Long,
     val durationMinutes: Int,
     val wasCompleted: Boolean,
-    val emergencyUnlock: Boolean = false
+    val emergencyUnlock: Boolean = false,
+    val blockedAppCount: Int = 0
 )
