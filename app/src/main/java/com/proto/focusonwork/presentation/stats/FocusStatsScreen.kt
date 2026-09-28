@@ -1,6 +1,5 @@
 package com.proto.focusonwork.presentation.stats
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,12 +7,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -53,10 +56,19 @@ fun FocusStatsScreen(
     val protectedApps = protectedAppNames.takeIf { it.isNotEmpty() }?.joinToString(", ")
         ?: if (totalBlockedApps > 0) "$totalBlockedApps app protections" else "your selected apps"
 
-    Column(modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 12.dp)) {
+    Column(
+        modifier.fillMaxSize()
+            .padding(WindowInsets.safeDrawing.asPaddingValues())
+            .consumeWindowInsets(WindowInsets.safeDrawing)
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Text("‹", style = MaterialTheme.typography.headlineMedium) }
-            Text("Focus history", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Column(Modifier.weight(1f)) {
+                Text("YOUR PROGRESS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                Text("Focus history", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            }
             Text("▥", style = MaterialTheme.typography.titleLarge, color = FocusIndigo)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -137,5 +149,10 @@ private fun lastSevenDays(sessions: List<SessionLogEntity>): List<Int> {
 
 @Composable
 private fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
-    Card(modifier) { Column(Modifier.padding(12.dp)) { Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text(label, style = MaterialTheme.typography.labelSmall) } }
+    Card(modifier, shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
 }

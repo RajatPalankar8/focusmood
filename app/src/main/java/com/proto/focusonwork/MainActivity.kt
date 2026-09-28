@@ -21,15 +21,28 @@ import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -45,6 +58,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -52,9 +66,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -71,11 +90,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material3.Checkbox
 import androidx.compose.ui.viewinterop.AndroidView
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
@@ -87,6 +108,7 @@ import com.google.android.gms.ads.AdLoader
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.Dp
 import com.proto.focusonwork.ui.theme.FocusAmber
 import com.proto.focusonwork.ui.theme.FocusIndigo
 import com.proto.focusonwork.ui.theme.FocusLavender
@@ -142,6 +164,36 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun FocusOnWorkApp() {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val permissionManager = remember(context) { PermissionManager(context) }
+    var usageGranted by remember { mutableStateOf(permissionManager.hasUsageAccess()) }
+    var overlayGranted by remember { mutableStateOf(permissionManager.hasOverlayAccess()) }
+    var showPermissionDialog by remember { mutableStateOf(false) }
+    val refreshPermissions = {
+        usageGranted = permissionManager.hasUsageAccess()
+        overlayGranted = permissionManager.hasOverlayAccess()
+    }
+    val usagePermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        refreshPermissions()
+    }
+    val overlayPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        refreshPermissions()
+    }
+    LaunchedEffect(showPermissionDialog, usageGranted, overlayGranted) {
+        if (showPermissionDialog && usageGranted && overlayGranted) {
+            delay(900L)
+            showPermissionDialog = false
+        }
+    }
+    DisposableEffect(lifecycleOwner, permissionManager) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                refreshPermissions()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val installedApps = remember { loadInstalledApps(context) }
     val sessionLogRepository = remember { SessionLogRepository(context) }
     val completedSessions by sessionLogRepository.completedSessions.collectAsState(initial = emptyList())
@@ -154,6 +206,8 @@ fun FocusOnWorkApp() {
     var secondsRemaining by remember { mutableLongStateOf(0L) }
     var showAppPicker by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
+    var showPinSetup by remember { mutableStateOf(false) }
+    var pinDraft by remember { mutableStateOf("") }
 
     LaunchedEffect(isSessionActive, sessionEndsAtMillis) {
         while (isSessionActive) {
@@ -174,32 +228,36 @@ fun FocusOnWorkApp() {
             delay(1_000L)
         }
     }
-    var showPinSetup by remember { mutableStateOf(false) }
-    var showPermissionDialog by remember { mutableStateOf(false) }
-    var pinDraft by remember { mutableStateOf("") }
-
     val selectedApps = selectedPackages.size
     val totalSessionSeconds = selectedDuration * 60L
 
     if (showHistory) {
-        Column(Modifier.fillMaxSize()) {
-            FocusStatsScreen(
-                sessions = completedSessions,
-                protectedAppNames = installedApps.filter { it.packageName in selectedPackages }.map { it.label },
-                onBack = { showHistory = false },
-                modifier = Modifier.weight(1f)
-            )
-            BannerAd()
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = MaterialTheme.colorScheme.background,
+            contentWindowInsets = WindowInsets.safeDrawing
+        ) { historyPadding ->
+            Column(Modifier.fillMaxSize().padding(historyPadding).consumeWindowInsets(historyPadding)) {
+                FocusStatsScreen(
+                    sessions = completedSessions,
+                    protectedAppNames = installedApps.filter { it.packageName in selectedPackages }.map { it.label },
+                    onBack = { showHistory = false },
+                    modifier = Modifier.weight(1f)
+                )
+                BannerAd()
+            }
         }
         return
     }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets.safeDrawing
     ) { padding ->
         if (isSessionActive) {
-            ActiveSessionScreen(
+            Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
+                ActiveSessionScreen(
                 secondsRemaining = secondsRemaining,
                 totalSeconds = totalSessionSeconds,
                 blockedApps = lockedPackages.size,
@@ -208,10 +266,12 @@ fun FocusOnWorkApp() {
                     lockedPackages = emptySet()
                     context.stopService(Intent(context, FocusMonitorService::class.java))
                 },
-                modifier = Modifier.padding(padding)
-            )
-            BannerAd()
+                modifier = Modifier.weight(1f)
+                )
+                BannerAd()
+            }
         } else {
+            Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
             DashboardScreen(
                 selectedDuration = selectedDuration,
                 selectedApps = selectedApps,
@@ -261,18 +321,19 @@ fun FocusOnWorkApp() {
                 pinConfigured = PinManager(context).hasPin(),
                 onConfigurePin = { showPinSetup = true },
                 onOpenHistory = { showHistory = true },
-                modifier = Modifier.padding(padding)
+                modifier = Modifier.weight(1f)
             )
             BannerAd()
+            }
         }
     }
 
     if (showPermissionDialog) {
         PermissionDialog(
-            usageGranted = PermissionManager(context).hasUsageAccess(),
-            overlayGranted = PermissionManager(context).hasOverlayAccess(),
-            onOpenUsageAccess = { context.startActivity(PermissionManager(context).usageAccessIntent()) },
-            onOpenOverlayAccess = { context.startActivity(PermissionManager(context).overlayAccessIntent()) },
+            usageGranted = usageGranted,
+            overlayGranted = overlayGranted,
+            onOpenUsageAccess = { usagePermissionLauncher.launch(permissionManager.usageAccessIntent()) },
+            onOpenOverlayAccess = { overlayPermissionLauncher.launch(permissionManager.overlayAccessIntent()) },
             onDismiss = { showPermissionDialog = false }
         )
     }
@@ -307,11 +368,7 @@ fun FocusOnWorkApp() {
         AppPickerDialog(
             apps = installedApps,
             selectedPackages = selectedPackages,
-            onToggle = { packageName ->
-                if (!isSessionActive) {
-                    selectedPackages = if (packageName in selectedPackages) selectedPackages - packageName else selectedPackages + packageName
-                }
-            },
+            onApplySelection = { selectedPackages = it },
             onDismiss = { showAppPicker = false }
         )
     }
@@ -331,21 +388,31 @@ private fun DashboardScreen(
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier.fillMaxSize().padding(horizontal = 20.dp),
+        modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).safeDrawingPadding(),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("FOCUS ON WORK", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                Text("Reclaim your focus", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("FOCUS ON WORK", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                Text("Make room for\nwhat matters.", style = MaterialTheme.typography.headlineMedium)
             }
-            IconButton(onClick = onOpenHistory) { Text("▥", fontSize = 24.sp, color = FocusIndigo) }
+            IconButton(onClick = onOpenHistory) {
+                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
+                    Text("▥", Modifier.padding(12.dp), fontSize = 22.sp, color = MaterialTheme.colorScheme.primary)
+                }
+            }
         }
 
         TimerCard(selectedDuration)
 
-        Text("Focus duration", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Choose your focus", style = MaterialTheme.typography.titleLarge)
+                Text("A small commitment is a good start.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(if (selectedDuration < 60) "${selectedDuration}m" else "${selectedDuration / 60}h", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+        }
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(listOf(2, 5, 10, 15, 25, 45, 60, 120)) { minutes ->
                 FilterChip(
@@ -363,34 +430,40 @@ private fun DashboardScreen(
         ) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("APPS TO BLOCK", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                        Text("$selectedApps apps selected", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("APPS TO PAUSE", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        Text("${if (selectedApps == 1) "1 app" else "$selectedApps apps"} selected", style = MaterialTheme.typography.titleLarge)
                     }
-                    OutlinedButton(onClick = onSelectApps) { Text("Select") }
+                    OutlinedButton(onClick = onSelectApps, shape = RoundedCornerShape(16.dp)) {
+                        Text(if (selectedApps == 0) "Choose apps" else "Edit list")
+                    }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    selectedAppNames.take(3).forEach { app -> AppPill(app) }
-                    if (selectedApps > 3) AppPill("+${selectedApps - 3}")
+                if (selectedAppNames.isNotEmpty()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        selectedAppNames.take(3).forEach { app -> AppPill(app) }
+                        if (selectedApps > 3) AppPill("+${selectedApps - 3}")
+                    }
+                } else {
+                    Text("Choose apps that usually pull your attention away.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Emergency PIN", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            TextButton(onClick = onConfigurePin) {
-                Text(if (pinConfigured) "••••  Configured" else "Set PIN", color = MaterialTheme.colorScheme.primary)
+        Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .55f)) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Emergency PIN", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                TextButton(onClick = onConfigurePin) {
+                    Text(if (pinConfigured) "••••  Ready" else "Set up", color = MaterialTheme.colorScheme.primary)
+                }
             }
         }
 
         Button(
             onClick = onStartFocus,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = RoundedCornerShape(18.dp)
-        ) { Text("START FOCUS MODE", fontWeight = FontWeight.Bold) }
+            modifier = Modifier.fillMaxWidth().height(62.dp),
+            shape = RoundedCornerShape(20.dp)
+        ) { Text("START FOCUS", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium) }
 
-        Spacer(Modifier.weight(1f))
-        Text("Today's focus  ·  2h 45m     •     4 day streak", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(8.dp))
     }
 }
@@ -399,52 +472,130 @@ private fun DashboardScreen(
 private fun AppPickerDialog(
     apps: List<InstalledApp>,
     selectedPackages: Set<String>,
-    onToggle: (String) -> Unit,
+    onApplySelection: (Set<String>) -> Unit,
     onDismiss: () -> Unit
 ) {
+    var draftSelection by remember(selectedPackages) { mutableStateOf(selectedPackages.toSet()) }
     var query by remember { mutableStateOf("") }
-    val filteredApps = apps.filter { it.label.contains(query, ignoreCase = true) }
+    val filteredApps = remember(apps, query) {
+        apps.filter { it.label.contains(query.trim(), ignoreCase = true) || it.packageName.contains(query.trim(), ignoreCase = true) }
+    }
+    val selectedApps = remember(apps, draftSelection) { apps.filter { it.packageName in draftSelection } }
+    val appListState = rememberLazyListState()
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Select apps to block") },
+        shape = RoundedCornerShape(32.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text("Choose your distractions", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("Pick the apps you want to pause during focus.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
         text = {
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    label = { Text("Search installed apps") }
+                    shape = RoundedCornerShape(18.dp),
+                    label = { Text("Search apps") },
+                    leadingIcon = { Text("⌕", fontSize = 22.sp, color = MaterialTheme.colorScheme.primary) },
+                    trailingIcon = if (query.isNotEmpty()) ({
+                        IconButton(onClick = { query = "" }) { Text("×", fontSize = 22.sp) }
+                    }) else null,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { })
                 )
-                Spacer(Modifier.height(12.dp))
-                Text("${selectedPackages.size} selected", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                LazyColumn(modifier = Modifier.height(320.dp)) {
-                    items(filteredApps, key = { it.packageName }) { app ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
-                        ) {
-                            Checkbox(
-                                checked = app.packageName in selectedPackages,
-                                onCheckedChange = { onToggle(app.packageName) }
-                            )
-                            AppIcon(icon = app.icon)
-                            Text(
-                                app.label,
-                                modifier = Modifier.weight(1f).padding(start = 12.dp)
-                            )
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("${draftSelection.size} selected", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Text("Changes apply when you tap Save", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = .8f))
+                        }
+                        if (draftSelection.isNotEmpty()) TextButton(onClick = { draftSelection = emptySet() }) { Text("Clear all") }
+                    }
+                }
+                if (selectedApps.isNotEmpty()) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(selectedApps, key = { "selected-${it.packageName}" }) { app ->
+                            Surface(
+                                onClick = { draftSelection = draftSelection - app.packageName },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                modifier = Modifier.semantics { contentDescription = "Remove ${app.label} from selected apps" }
+                            ) {
+                                Row(Modifier.padding(start = 10.dp, end = 12.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    AppIcon(icon = app.icon, size = 24.dp)
+                                    Text(app.label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                    Text("×", color = MaterialTheme.colorScheme.onSecondaryContainer, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+                if (apps.isEmpty()) {
+                    PickerEmptyState("No launchable apps found", "Install an app with a launcher icon and it will appear here.")
+                } else if (filteredApps.isEmpty()) {
+                    PickerEmptyState("No matching apps", "Try another app name or package name.")
+                } else {
+                    Text("INSTALLED APPS  ·  ${filteredApps.size}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    LazyColumn(state = appListState, modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(filteredApps, key = { it.packageName }) { app ->
+                            val isSelected = app.packageName in draftSelection
+                            Surface(
+                                onClick = {
+                                    draftSelection = if (isSelected) draftSelection - app.packageName else draftSelection + app.packageName
+                                },
+                                shape = RoundedCornerShape(18.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .45f),
+                                modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {
+                                    contentDescription = "${app.label}, ${if (isSelected) "selected" else "not selected"}"
+                                }
+                            ) {
+                                Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    AppIcon(icon = app.icon, size = 42.dp)
+                                    Column(Modifier.weight(1f)) {
+                                        Text(app.label, style = MaterialTheme.typography.bodyLarge, fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
+                                        Text(if (isSelected) "Added to focus list" else "Tap to add", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Checkbox(checked = isSelected, onCheckedChange = { checked ->
+                                        draftSelection = if (checked) draftSelection + app.packageName else draftSelection - app.packageName
+                                    })
+                                }
+                            }
                         }
                     }
                 }
             }
         },
-        confirmButton = { Button(onClick = onDismiss) { Text("Save selection") } }
+        confirmButton = {
+            Button(onClick = { onApplySelection(draftSelection); onDismiss() }, shape = RoundedCornerShape(18.dp)) {
+                Text("Save ${draftSelection.size} apps")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
     )
 }
 
 @Composable
-private fun AppIcon(icon: Drawable) {
+private fun PickerEmptyState(title: String, message: String) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("✦", fontSize = 28.sp, color = MaterialTheme.colorScheme.primary)
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+    }
+}
+
+@Composable
+private fun AppIcon(icon: Drawable, size: Dp = 40.dp) {
     val drawable = remember(icon) {
         val bitmap = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
         val canvas = android.graphics.Canvas(bitmap)
@@ -455,7 +606,7 @@ private fun AppIcon(icon: Drawable) {
     Image(
         bitmap = drawable,
         contentDescription = "App icon",
-        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp))
+        modifier = Modifier.size(size).clip(RoundedCornerShape(10.dp))
     )
 }
 
@@ -513,11 +664,11 @@ private fun ActiveSessionScreen(
     modifier: Modifier = Modifier
 ) {
     val progress = if (totalSeconds > 0) secondsRemaining.toFloat() / totalSeconds.toFloat() else 0f
-    Column(modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Surface(shape = CircleShape, color = Color(0xFFDCFCE7)) {
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
             Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF16A34A)))
-                Text("  FOCUS IS RUNNING", color = Color(0xFF166534), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF16865C)))
+                Text("  FOCUS IS RUNNING", color = MaterialTheme.colorScheme.onSecondaryContainer, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
             }
         }
         Spacer(Modifier.height(20.dp))

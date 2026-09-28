@@ -4,11 +4,19 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +44,7 @@ import kotlinx.coroutines.delay
 class BlockerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         window.addFlags(
             WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
                 WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
@@ -99,20 +108,31 @@ private fun BlockerScreen(
             modifier = Modifier.fillMaxSize()
         )
     } else {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text("✦", style = MaterialTheme.typography.displayMedium, color = MaterialTheme.colorScheme.primary)
-            Text("Protect your flow", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-            Text(
-                text = if (blockedPackage.isBlank()) "This app is paused during your focus session." else "$blockedPackage is paused during your focus session.",
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(vertical = 16.dp)
-            )
-            Button(onClick = onBackToFocus) { Text("Back to Focus") }
-            TextButton(onClick = { showUnlock = true }) { Text("Emergency Unlock") }
+        Box(Modifier.fillMaxSize().safeDrawingPadding().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
+            Card(
+                Modifier.fillMaxWidth().padding(24.dp),
+                shape = RoundedCornerShape(32.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                        Text("✦", Modifier.padding(horizontal = 24.dp, vertical = 14.dp), style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary)
+                    }
+                    Text("Protect your flow", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                    Text(
+                        text = if (blockedPackage.isBlank()) "This app is paused during your focus session." else "$blockedPackage is paused during your focus session.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    Button(onClick = onBackToFocus, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) { Text("Back to Focus") }
+                    TextButton(onClick = { showUnlock = true }) { Text("Emergency Unlock") }
+                }
+            }
         }
     }
 }

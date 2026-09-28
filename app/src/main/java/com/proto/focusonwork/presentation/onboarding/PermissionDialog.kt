@@ -4,11 +4,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -16,10 +16,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import com.proto.focusonwork.ui.theme.FocusSuccess
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -32,27 +36,28 @@ fun PermissionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(30.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
         title = {
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Prepare your focus space", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(6.dp))
-                Text("Two switches keep your focus session protected", style = MaterialTheme.typography.bodyMedium)
+                Text("Two switches keep your focus session protected", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large,
+                    shape = RoundedCornerShape(22.dp),
                     color = Color.Transparent
                 ) {
                     Column(
                         Modifier
-                            .background(Brush.linearGradient(listOf(Color(0xFF4F46E5), Color(0xFFDB2777))))
+                            .background(Brush.linearGradient(listOf(Color(0xFF4F46E5), Color(0xFF7C3AED), Color(0xFFDB2777))))
                             .padding(18.dp)
                     ) {
-                        Text("Almost ready", color = Color.White, fontWeight = FontWeight.Bold)
-                        Text("Turn on both permissions below, then come back to start focus mode.", color = Color.White.copy(alpha = .85f))
+                        Text(if (usageGranted && overlayGranted) "You're all set" else "Almost ready", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text(if (usageGranted && overlayGranted) "Both permissions are enabled. Continue to start your focus session." else "Allow each permission below. This screen will update when you return.", color = Color.White.copy(alpha = .88f))
                     }
                 }
                 Text("Required permissions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -73,7 +78,11 @@ fun PermissionDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("I’ll do this later") }
+            if (usageGranted && overlayGranted) {
+                Button(onClick = onDismiss, shape = RoundedCornerShape(16.dp)) { Text("Continue") }
+            } else {
+                TextButton(onClick = onDismiss) { Text("I’ll do this later") }
+            }
         }
     )
 }
@@ -89,24 +98,36 @@ private fun AccessRow(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = MaterialTheme.shapes.large
+        shape = RoundedCornerShape(20.dp)
     ) {
-        Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Surface(
-                color = MaterialTheme.colorScheme.primary,
-                shape = MaterialTheme.shapes.medium,
+                color = if (granted) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primary,
+                shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.size(40.dp)
             ) {
-                Text(number, modifier = Modifier.padding(10.dp), color = Color.White, fontWeight = FontWeight.Bold)
+                Text(number, modifier = Modifier.padding(10.dp), color = if (granted) MaterialTheme.colorScheme.onSecondaryContainer else Color.White, fontWeight = FontWeight.Bold)
             }
             Column(Modifier.weight(1f)) {
                 Text(title, fontWeight = FontWeight.Bold)
                 Text(description, style = MaterialTheme.typography.bodySmall)
             }
-            if (granted) {
-                Text("Ready", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-            } else {
-                Button(onClick = onClick) { Text("Allow") }
+            Surface(
+                onClick = { if (!granted) onClick() },
+                color = if (granted) Color(0xFFDDF5E8) else MaterialTheme.colorScheme.primary,
+                shape = CircleShape,
+                modifier = Modifier.semantics {
+                    contentDescription = if (granted) "$title permission allowed" else "Allow $title permission"
+                }
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(if (granted) "✓" else "+", color = if (granted) FocusSuccess else MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                    Text(if (granted) "Allowed" else "Allow", color = if (granted) FocusSuccess else MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
