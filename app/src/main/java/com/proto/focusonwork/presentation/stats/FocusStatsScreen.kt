@@ -2,17 +2,23 @@ package com.proto.focusonwork.presentation.stats
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -55,11 +61,13 @@ fun FocusStatsScreen(
     val totalBlockedApps = sessions.sumOf { it.blockedAppCount }
     val protectedApps = protectedAppNames.takeIf { it.isNotEmpty() }?.joinToString(", ")
         ?: if (totalBlockedApps > 0) "$totalBlockedApps app protections" else "your selected apps"
+    val scrollState = rememberScrollState()
 
     Column(
         modifier.fillMaxSize()
             .padding(WindowInsets.safeDrawing.asPaddingValues())
             .consumeWindowInsets(WindowInsets.safeDrawing)
+            .verticalScroll(scrollState)
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -97,9 +105,8 @@ fun FocusStatsScreen(
         if (sessions.isEmpty()) {
             Text("Complete your first focus session to start building your graph.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxSize()) {
-                items(count = sessions.size) { index ->
-                    val session = sessions[index]
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                sessions.forEach { session ->
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(14.dp)) {
                             Text(DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(session.endedAtMillis)), fontWeight = FontWeight.Bold)

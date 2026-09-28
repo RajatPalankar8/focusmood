@@ -21,6 +21,7 @@ import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
@@ -28,7 +29,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
@@ -40,7 +40,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxSize
@@ -91,6 +92,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -109,6 +111,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.window.DialogProperties
 import com.proto.focusonwork.ui.theme.FocusAmber
 import com.proto.focusonwork.ui.theme.FocusIndigo
 import com.proto.focusonwork.ui.theme.FocusLavender
@@ -152,7 +155,10 @@ private fun loadInstalledApps(context: Context): List<InstalledApp> {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.auto(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.auto(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
+        )
         setContent {
             FocusOnWorkTheme {
                 FocusOnWorkApp()
@@ -244,7 +250,7 @@ fun FocusOnWorkApp() {
                     onBack = { showHistory = false },
                     modifier = Modifier.weight(1f)
                 )
-                BannerAd()
+                BannerAd(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
             }
         }
         return
@@ -258,20 +264,20 @@ fun FocusOnWorkApp() {
         if (isSessionActive) {
             Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
                 ActiveSessionScreen(
-                secondsRemaining = secondsRemaining,
-                totalSeconds = totalSessionSeconds,
-                blockedApps = lockedPackages.size,
-                onEndSession = {
-                    isSessionActive = false
-                    lockedPackages = emptySet()
-                    context.stopService(Intent(context, FocusMonitorService::class.java))
-                },
-                modifier = Modifier.weight(1f)
+                    secondsRemaining = secondsRemaining,
+                    totalSeconds = totalSessionSeconds,
+                    blockedApps = lockedPackages.size,
+                    onEndSession = {
+                        isSessionActive = false
+                        lockedPackages = emptySet()
+                        context.stopService(Intent(context, FocusMonitorService::class.java))
+                    },
+                    modifier = Modifier.weight(1f)
                 )
-                BannerAd()
+                BannerAd(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
             }
         } else {
-            Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
+            Column(Modifier.fillMaxSize()) {
             DashboardScreen(
                 selectedDuration = selectedDuration,
                 selectedApps = selectedApps,
@@ -323,7 +329,7 @@ fun FocusOnWorkApp() {
                 onOpenHistory = { showHistory = true },
                 modifier = Modifier.weight(1f)
             )
-            BannerAd()
+            BannerAd(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
             }
         }
     }
@@ -341,14 +347,21 @@ fun FocusOnWorkApp() {
     if (showPinSetup) {
         AlertDialog(
             onDismissRequest = { showPinSetup = false },
-            title = { Text("Set emergency PIN") },
+            shape = RoundedCornerShape(28.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Set your emergency PIN", style = MaterialTheme.typography.headlineSmall) },
             text = {
-                OutlinedTextField(
-                    value = pinDraft,
-                    onValueChange = { if (it.length <= 4 && it.all(Char::isDigit)) pinDraft = it },
-                    label = { Text("4-digit PIN") },
-                    singleLine = true
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Keep a private way to end a session in an emergency.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedTextField(
+                        value = pinDraft,
+                        onValueChange = { if (it.length <= 4 && it.all(Char::isDigit)) pinDraft = it },
+                        label = { Text("4-digit PIN") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done)
+                    )
+                }
             },
             confirmButton = {
                 Button(
@@ -388,14 +401,14 @@ private fun DashboardScreen(
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).safeDrawingPadding(),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(2.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("FOCUS ON WORK", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                Text("Make room for\nwhat matters.", style = MaterialTheme.typography.headlineMedium)
+                Text("Make room for\nwhat matters.", style = MaterialTheme.typography.headlineSmall)
             }
             IconButton(onClick = onOpenHistory) {
                 Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
@@ -408,8 +421,8 @@ private fun DashboardScreen(
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Choose your focus", style = MaterialTheme.typography.titleLarge)
-                Text("A small commitment is a good start.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Choose your focus", style = MaterialTheme.typography.titleMedium)
+                Text("A small commitment is a good start.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text(if (selectedDuration < 60) "${selectedDuration}m" else "${selectedDuration / 60}h", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
         }
@@ -428,7 +441,7 @@ private fun DashboardScreen(
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = FocusLavender)
         ) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("APPS TO PAUSE", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
@@ -450,7 +463,7 @@ private fun DashboardScreen(
         }
 
         Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .55f)) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Emergency PIN", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 TextButton(onClick = onConfigurePin) {
                     Text(if (pinConfigured) "••••  Ready" else "Set up", color = MaterialTheme.colorScheme.primary)
@@ -460,11 +473,11 @@ private fun DashboardScreen(
 
         Button(
             onClick = onStartFocus,
-            modifier = Modifier.fillMaxWidth().height(62.dp),
-            shape = RoundedCornerShape(20.dp)
+            modifier = Modifier.fillMaxWidth().height(54.dp),
+            shape = RoundedCornerShape(18.dp)
         ) { Text("START FOCUS", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium) }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(2.dp))
     }
 }
 
@@ -477,6 +490,7 @@ private fun AppPickerDialog(
 ) {
     var draftSelection by remember(selectedPackages) { mutableStateOf(selectedPackages.toSet()) }
     var query by remember { mutableStateOf("") }
+    val selectionListState = rememberLazyListState()
     val filteredApps = remember(apps, query) {
         apps.filter { it.label.contains(query.trim(), ignoreCase = true) || it.packageName.contains(query.trim(), ignoreCase = true) }
     }
@@ -487,6 +501,7 @@ private fun AppPickerDialog(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(32.dp),
         containerColor = MaterialTheme.colorScheme.surface,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
         title = {
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text("Choose your distractions", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -494,7 +509,10 @@ private fun AppPickerDialog(
             }
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                Modifier.fillMaxWidth().heightIn(max = 600.dp).imePadding().verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
@@ -522,7 +540,7 @@ private fun AppPickerDialog(
                     }
                 }
                 if (selectedApps.isNotEmpty()) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LazyRow(state = selectionListState, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(selectedApps, key = { "selected-${it.packageName}" }) { app ->
                             Surface(
                                 onClick = { draftSelection = draftSelection - app.packageName },
@@ -698,9 +716,9 @@ private fun ActiveSessionScreen(
 }
 
 @Composable
-private fun BannerAd() {
+private fun BannerAd(modifier: Modifier = Modifier) {
     AndroidView(
-        modifier = Modifier.fillMaxWidth().height(50.dp),
+        modifier = modifier.fillMaxWidth().height(50.dp),
         factory = { context ->
             AdView(context).apply {
                 setAdSize(AdSize.BANNER)

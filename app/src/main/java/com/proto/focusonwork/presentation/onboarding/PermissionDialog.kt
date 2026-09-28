@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import com.proto.focusonwork.ui.theme.FocusSuccess
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 
 @Composable
 fun PermissionDialog(
@@ -37,6 +38,7 @@ fun PermissionDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(30.dp),
+        properties = DialogProperties(usePlatformDefaultWidth = false),
         containerColor = MaterialTheme.colorScheme.surface,
         title = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
