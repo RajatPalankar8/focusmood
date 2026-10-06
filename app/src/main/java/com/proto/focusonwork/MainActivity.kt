@@ -25,6 +25,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.SystemBarStyle
@@ -154,6 +155,7 @@ private data class RestoredSession(
     val endsAtMillis: Long
 )
 
+private const val SPLASH_DURATION_MILLIS = 1000L
 private const val SESSION_PREFERENCES = "focus_session"
 private const val KEY_SESSION_ACTIVE = "session_active"
 private const val KEY_SESSION_STARTED_AT = "session_started_at"
@@ -182,7 +184,13 @@ private fun loadInstalledApps(context: Context): List<InstalledApp> {
 }
 
 class MainActivity : ComponentActivity() {
+    private var splashStartTime = 0L
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen().setKeepOnScreenCondition {
+            android.os.SystemClock.uptimeMillis() - splashStartTime < SPLASH_DURATION_MILLIS
+        }
+        splashStartTime = android.os.SystemClock.uptimeMillis()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
