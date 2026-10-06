@@ -55,11 +55,14 @@ class BlockerActivity : ComponentActivity() {
                 WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
         )
         val blockedPackage = intent.getStringExtra(EXTRA_BLOCKED_PACKAGE).orEmpty()
+        val blockedAppName = runCatching {
+            packageManager.getApplicationLabel(packageManager.getApplicationInfo(blockedPackage, 0)).toString()
+        }.getOrElse { blockedPackage }
         val pinManager = PinManager(this)
         setContent {
             FocusOnWorkTheme {
                 BlockerScreen(
-                    blockedPackage = blockedPackage,
+                    blockedAppName = blockedAppName,
                     pinManager = pinManager,
                     onBackToFocus = {
                         startActivity(Intent(this@BlockerActivity, MainActivity::class.java).apply {
@@ -83,7 +86,7 @@ class BlockerActivity : ComponentActivity() {
 
 @Composable
 private fun BlockerScreen(
-    blockedPackage: String,
+    blockedAppName: String,
     pinManager: PinManager,
     onBackToFocus: () -> Unit,
     onUnlocked: () -> Unit
@@ -128,7 +131,7 @@ private fun BlockerScreen(
                     }
                     Text("Protect your flow", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                     Text(
-                        text = if (blockedPackage.isBlank()) "This app is paused during your focus session." else "$blockedPackage is paused during your focus session.",
+                        text = if (blockedAppName.isBlank()) "This app is paused during your focus session." else "$blockedAppName is paused during your focus session.",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center

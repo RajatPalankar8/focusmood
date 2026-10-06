@@ -1,12 +1,17 @@
 package com.proto.focusonwork
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.content.pm.ApplicationInfo
 import android.graphics.Color as AndroidColor
+import android.graphics.drawable.GradientDrawable
 import android.view.ViewGroup
+import android.widget.Button as AndroidButton
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.proto.focusonwork.security.PinManager
@@ -19,11 +24,18 @@ import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -52,8 +64,11 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
@@ -84,6 +99,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -129,6 +145,21 @@ data class InstalledApp(
     val packageName: String,
     val icon: Drawable
 )
+
+private data class RestoredSession(
+    val active: Boolean,
+    val packages: Set<String>,
+    val durationMinutes: Int,
+    val startedAtMillis: Long,
+    val endsAtMillis: Long
+)
+
+private const val SESSION_PREFERENCES = "focus_session"
+private const val KEY_SESSION_ACTIVE = "session_active"
+private const val KEY_SESSION_STARTED_AT = "session_started_at"
+private const val KEY_SESSION_ENDS_AT = "session_ends_at"
+private const val KEY_SELECTED_DURATION = "selected_duration"
+private const val KEY_SELECTED_PACKAGES = "selected_packages"
 
 private fun loadInstalledApps(context: Context): List<InstalledApp> {
     val packageManager = context.packageManager
@@ -201,15 +232,34 @@ fun FocusOnWorkApp() {
     val installedApps = remember { loadInstalledApps(context) }
     val sessionLogRepository = remember { SessionLogRepository(context) }
     val completedSessions by sessionLogRepository.completedSessions.collectAsState(initial = emptyList())
-    var selectedDuration by remember { mutableIntStateOf(45) }
-    var selectedPackages by remember { mutableStateOf(setOf<String>()) }
-    var lockedPackages by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var isSessionActive by remember { mutableStateOf(false) }
-    var sessionEndsAtMillis by remember { mutableLongStateOf(0L) }
-    var sessionStartedAtMillis by remember { mutableLongStateOf(0L) }
+    val sessionPreferences = remember(context) {
+        context.getSharedPreferences(SESSION_PREFERENCES, Context.MODE_PRIVATE)
+    }
+    val restoredSession = remember(sessionPreferences) {
+        val endsAt = sessionPreferences.getLong(KEY_SESSION_ENDS_AT, 0L)
+        val active = sessionPreferences.getBoolean(KEY_SESSION_ACTIVE, false) && endsAt > System.currentTimeMillis()
+        val packages = sessionPreferences.getStringSet(KEY_SELECTED_PACKAGES, emptySet()).orEmpty().toSet()
+        RestoredSession(
+            active = active && packages.isNotEmpty(),
+            packages = packages,
+            durationMinutes = sessionPreferences.getInt(KEY_SELECTED_DURATION, 45),
+            startedAtMillis = sessionPreferences.getLong(KEY_SESSION_STARTED_AT, 0L),
+            endsAtMillis = endsAt
+        )
+    }
+    var selectedDuration by remember { mutableIntStateOf(restoredSession.durationMinutes) }
+    val savedPackages = remember(sessionPreferences) {
+        sessionPreferences.getStringSet(KEY_SELECTED_PACKAGES, emptySet()).orEmpty().toSet()
+    }
+    var selectedPackages by remember { mutableStateOf(savedPackages) }
+    var lockedPackages by remember { mutableStateOf(if (restoredSession.active) restoredSession.packages else emptySet()) }
+    var isSessionActive by remember { mutableStateOf(restoredSession.active) }
+    var sessionEndsAtMillis by remember { mutableLongStateOf(if (restoredSession.active) restoredSession.endsAtMillis else 0L) }
+    var sessionStartedAtMillis by remember { mutableLongStateOf(if (restoredSession.active) restoredSession.startedAtMillis else 0L) }
     var secondsRemaining by remember { mutableLongStateOf(0L) }
     var showAppPicker by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
+    var showExitDialog by remember { mutableStateOf(false) }
     var showPinSetup by remember { mutableStateOf(false) }
     var pinDraft by remember { mutableStateOf("") }
 
@@ -220,6 +270,7 @@ fun FocusOnWorkApp() {
                 val completedBlockedAppCount = lockedPackages.size
                 isSessionActive = false
                 lockedPackages = emptySet()
+                sessionPreferences.edit().putBoolean(KEY_SESSION_ACTIVE, false).apply()
                 context.stopService(Intent(context, FocusMonitorService::class.java))
                 sessionLogRepository.recordCompletedSession(
                     startedAtMillis = sessionStartedAtMillis,
@@ -234,6 +285,17 @@ fun FocusOnWorkApp() {
     }
     val selectedApps = selectedPackages.size
     val totalSessionSeconds = selectedDuration * 60L
+
+    BackHandler(
+        enabled = showHistory ||
+            (!showPermissionDialog && !showPinSetup && !showAppPicker && !showExitDialog)
+    ) {
+        if (showHistory) {
+            showHistory = false
+        } else {
+            showExitDialog = true
+        }
+    }
 
     if (showHistory) {
         Scaffold(
@@ -268,6 +330,7 @@ fun FocusOnWorkApp() {
                     onEndSession = {
                         isSessionActive = false
                         lockedPackages = emptySet()
+                        sessionPreferences.edit().putBoolean(KEY_SESSION_ACTIVE, false).apply()
                         context.stopService(Intent(context, FocusMonitorService::class.java))
                     },
                     modifier = Modifier.weight(1f)
@@ -279,7 +342,10 @@ fun FocusOnWorkApp() {
             DashboardScreen(
                 selectedDuration = selectedDuration,
                 selectedApps = selectedApps,
-                onDurationSelected = { selectedDuration = it },
+                onDurationSelected = {
+                    selectedDuration = it
+                    sessionPreferences.edit().putInt(KEY_SELECTED_DURATION, it).apply()
+                },
                 onSelectApps = { if (!isSessionActive) showAppPicker = true },
                 onStartFocus = {
                     val pinManager = PinManager(context)
@@ -300,6 +366,13 @@ fun FocusOnWorkApp() {
                             sessionStartedAtMillis = System.currentTimeMillis()
                             sessionEndsAtMillis = sessionStartedAtMillis + selectedDuration * 60_000L
                             secondsRemaining = selectedDuration * 60L
+                            sessionPreferences.edit()
+                                .putBoolean(KEY_SESSION_ACTIVE, true)
+                                .putLong(KEY_SESSION_STARTED_AT, sessionStartedAtMillis)
+                                .putLong(KEY_SESSION_ENDS_AT, sessionEndsAtMillis)
+                                .putInt(KEY_SELECTED_DURATION, selectedDuration)
+                                .putStringSet(KEY_SELECTED_PACKAGES, lockedPackages)
+                                .apply()
                             isSessionActive = true
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                                 ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -379,8 +452,218 @@ fun FocusOnWorkApp() {
         AppPickerDialog(
             apps = installedApps,
             selectedPackages = selectedPackages,
-            onApplySelection = { selectedPackages = it },
+            onApplySelection = {
+                selectedPackages = it.toSet()
+                sessionPreferences.edit().putStringSet(KEY_SELECTED_PACKAGES, it.toSet()).apply()
+            },
             onDismiss = { showAppPicker = false }
+        )
+    }
+
+    if (showExitDialog) {
+        ExitDialog(
+            onDismiss = { showExitDialog = false },
+            onExit = { (context as? Activity)?.finish() }
+        )
+    }
+}
+
+@Composable
+private fun ExitDialog(
+    onDismiss: () -> Unit,
+    onExit: () -> Unit
+) {
+    val context = LocalContext.current
+    val pulseTransition = rememberInfiniteTransition(label = "exitDialogPulse")
+    val pulseScale by pulseTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.025f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 900, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "exitDialogPulseScale"
+    )
+    val colors = MaterialTheme.colorScheme
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = colors.surface,
+        shape = RoundedCornerShape(28.dp),
+        tonalElevation = 10.dp,
+        title = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(58.dp)
+                        .background(colors.primaryContainer, RoundedCornerShape(18.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("✦", color = colors.primary, fontSize = 29.sp, textAlign = TextAlign.Center)
+                }
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    text = "Leaving Focus On Work?",
+                    color = colors.onSurface,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 22.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Your focus settings are saved. Come back whenever you’re ready to focus on your work or take back your time from distractions.",
+                    color = colors.onSurfaceVariant,
+                    fontSize = 15.sp,
+                    lineHeight = 22.sp,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(20.dp))
+                Surface(
+                    onClick = {
+                        onDismiss()
+                        openDeveloperPage(context)
+                    },
+                    modifier = Modifier.fillMaxWidth().scale(pulseScale),
+                    color = colors.surfaceVariant,
+                    shape = RoundedCornerShape(20.dp),
+                    border = BorderStroke(
+                        1.5.dp,
+                        Brush.linearGradient(listOf(colors.primary, colors.primary.copy(alpha = 0.35f)))
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("▶", color = colors.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.size(8.dp))
+                            Text(
+                                text = "DISCOVER MORE APPS",
+                                fontWeight = FontWeight.Black,
+                                color = colors.primary,
+                                fontSize = 14.sp,
+                                letterSpacing = 1.sp
+                            )
+                            Spacer(Modifier.size(6.dp))
+                            Box(
+                                Modifier.background(colors.primary, RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 5.dp, vertical = 2.dp)
+                            ) {
+                                Text("MORE", color = colors.onPrimary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        Spacer(Modifier.height(5.dp))
+                        Text(
+                            text = "Explore more apps from the Proto Coders Point.",
+                            fontSize = 12.sp,
+                            color = colors.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        Box(
+                            Modifier.background(
+                                Brush.horizontalGradient(listOf(colors.primary, colors.primary.copy(alpha = 0.72f))),
+                                RoundedCornerShape(20.dp)
+                            ).padding(horizontal = 16.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = "VIEW ON GOOGLE PLAY",
+                                color = colors.onPrimary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 0.7.sp
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    text = "Enjoying Focus On Work? Rate the app!",
+                    color = colors.onSurfaceVariant,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onDismiss()
+                            openAppListing(context)
+                        }
+                        .padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    repeat(5) {
+                        Text(
+                            text = "★",
+                            color = colors.primary,
+                            fontSize = 30.sp,
+                            modifier = Modifier.padding(horizontal = 2.dp)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = colors.primary,
+                    contentColor = colors.onPrimary
+                ),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.height(48.dp)
+            ) {
+                Text("KEEP FOCUSING", fontWeight = FontWeight.ExtraBold, letterSpacing = 0.8.sp)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onExit, modifier = Modifier.height(48.dp)) {
+                Text("EXIT APP", color = colors.onSurfaceVariant, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp)
+            }
+        }
+    )
+}
+
+private fun openAppListing(context: Context) {
+    val marketIntent = Intent(
+        Intent.ACTION_VIEW,
+        Uri.parse("market://details?id=${context.packageName}")
+    )
+    try {
+        context.startActivity(marketIntent)
+    } catch (_: android.content.ActivityNotFoundException) {
+        context.startActivity(
+            Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://play.google.com/store/apps/details?id=${context.packageName}")
+            )
+        )
+    }
+}
+
+private fun openDeveloperPage(context: Context) {
+    val marketIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=pub:Palankar.R"))
+    try {
+        context.startActivity(marketIntent)
+    } catch (_: android.content.ActivityNotFoundException) {
+        context.startActivity(
+            Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://play.google.com/store/search?q=Palankar.R&c=apps")
+            )
         )
     }
 }
@@ -408,9 +691,40 @@ private fun DashboardScreen(
                 Text("FOCUS ON WORK", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 Text("Make room for\nwhat matters.", style = MaterialTheme.typography.headlineSmall)
             }
-            IconButton(onClick = onOpenHistory) {
+            IconButton(
+                onClick = onOpenHistory,
+                modifier = Modifier.semantics { contentDescription = "Open history and analysis" }
+            ) {
                 Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
-                    Text("▥", Modifier.padding(12.dp), fontSize = 22.sp, color = MaterialTheme.colorScheme.primary)
+                    Canvas(Modifier.padding(12.dp).size(22.dp)) {
+                        val strokeWidth = size.width * 0.1f
+                        val baseline = size.height * 0.86f
+                        val axisColor = FocusIndigo
+                        drawLine(
+                            color = axisColor,
+                            start = Offset(size.width * 0.12f, size.height * 0.08f),
+                            end = Offset(size.width * 0.12f, baseline),
+                            strokeWidth = strokeWidth
+                        )
+                        drawLine(
+                            color = axisColor,
+                            start = Offset(size.width * 0.12f, baseline),
+                            end = Offset(size.width * 0.94f, baseline),
+                            strokeWidth = strokeWidth
+                        )
+                        val points = listOf(
+                            Offset(size.width * 0.28f, size.height * 0.64f),
+                            Offset(size.width * 0.50f, size.height * 0.43f),
+                            Offset(size.width * 0.70f, size.height * 0.53f),
+                            Offset(size.width * 0.91f, size.height * 0.20f)
+                        )
+                        points.zipWithNext().forEach { (start, end) ->
+                            drawLine(axisColor, start, end, strokeWidth, cap = StrokeCap.Round)
+                        }
+                        points.forEach { point ->
+                            drawCircle(axisColor, radius = strokeWidth * 1.15f, center = point)
+                        }
+                    }
                 }
             }
         }
@@ -732,38 +1046,97 @@ private fun BannerAd(modifier: Modifier = Modifier) {
 private fun NativeAdBanner() {
     var nativeAd by remember { mutableStateOf<NativeAd?>(null) }
     val context = LocalContext.current
-    LaunchedEffect(Unit) {
+    LaunchedEffect(context) {
         AdLoader.Builder(context, "ca-app-pub-3940256099942544/2247696110")
-            .forNativeAd { ad -> nativeAd?.destroy(); nativeAd = ad }
+            .forNativeAd { ad ->
+                nativeAd?.destroy()
+                nativeAd = ad
+            }
             .withAdListener(object : AdListener() {})
             .build()
             .loadAd(AdRequest.Builder().build())
     }
-    DisposableEffect(nativeAd) {
+    DisposableEffect(Unit) {
         onDispose { nativeAd?.destroy() }
     }
     nativeAd?.let { ad ->
         AndroidView(
-            modifier = Modifier.fillMaxWidth().height(92.dp).padding(horizontal = 12.dp),
+            modifier = Modifier.fillMaxWidth().height(132.dp).padding(horizontal = 12.dp),
             factory = { viewContext ->
+                val density = viewContext.resources.displayMetrics.density
+                fun dp(value: Int) = (value * density).toInt()
+
                 NativeAdView(viewContext).apply {
-                    val content = LinearLayout(viewContext).apply {
+                    val card = LinearLayout(viewContext).apply {
                         orientation = LinearLayout.VERTICAL
-                        setPadding(16, 8, 16, 8)
-                        setBackgroundColor(AndroidColor.argb(18, 70, 70, 90))
+                        setPadding(dp(14), dp(10), dp(14), dp(10))
+                        background = GradientDrawable().apply {
+                            setColor(AndroidColor.WHITE)
+                            cornerRadius = dp(18).toFloat()
+                        }
                     }
-                    val headline = TextView(viewContext).apply { textSize = 16f; setTextColor(AndroidColor.BLACK) }
-                    val body = TextView(viewContext).apply { textSize = 12f; setTextColor(AndroidColor.DKGRAY) }
-                    content.addView(headline)
-                    content.addView(body)
-                    addView(content, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                    val adLabel = TextView(viewContext).apply {
+                        text = "Ad"
+                        textSize = 11f
+                        setTextColor(AndroidColor.rgb(75, 65, 190))
+                        setPadding(dp(6), dp(2), dp(6), dp(2))
+                        background = GradientDrawable().apply {
+                            setColor(AndroidColor.rgb(238, 235, 255))
+                            cornerRadius = dp(5).toFloat()
+                        }
+                    }
+                    val row = LinearLayout(viewContext).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = android.view.Gravity.CENTER_VERTICAL
+                    }
+                    val icon = ImageView(viewContext).apply {
+                        scaleType = ImageView.ScaleType.CENTER_CROP
+                    }
+                    val copy = LinearLayout(viewContext).apply {
+                        orientation = LinearLayout.VERTICAL
+                        setPadding(dp(10), 0, dp(8), 0)
+                    }
+                    val headline = TextView(viewContext).apply {
+                        textSize = 15f
+                        setTextColor(AndroidColor.rgb(28, 27, 36))
+                        maxLines = 1
+                        ellipsize = android.text.TextUtils.TruncateAt.END
+                    }
+                    val body = TextView(viewContext).apply {
+                        textSize = 12f
+                        setTextColor(AndroidColor.rgb(95, 93, 105))
+                        maxLines = 2
+                        ellipsize = android.text.TextUtils.TruncateAt.END
+                    }
+                    val callToAction = AndroidButton(viewContext).apply {
+                        textSize = 12f
+                        isAllCaps = false
+                        minHeight = dp(40)
+                        setPadding(dp(12), 0, dp(12), 0)
+                    }
+                    copy.addView(headline, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+                    copy.addView(body, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                        topMargin = dp(4)
+                    })
+                    row.addView(icon, LinearLayout.LayoutParams(dp(44), dp(44)))
+                    row.addView(copy, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                    row.addView(callToAction, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(40)))
+                    card.addView(adLabel, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+                    card.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f).apply {
+                        topMargin = dp(8)
+                    })
+                    addView(card, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                    iconView = icon
                     headlineView = headline
                     bodyView = body
+                    callToActionView = callToAction
                 }
             },
             update = { view ->
+                (view.iconView as? ImageView)?.setImageDrawable(ad.icon?.drawable)
                 (view.headlineView as? TextView)?.text = ad.headline
-                (view.bodyView as? TextView)?.text = ad.body
+                (view.bodyView as? TextView)?.text = ad.body.orEmpty()
+                (view.callToActionView as? AndroidButton)?.text = ad.callToAction.orEmpty()
                 view.setNativeAd(ad)
             }
         )
