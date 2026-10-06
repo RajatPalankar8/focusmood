@@ -13,6 +13,6 @@ class SessionTimeTest {
 
     @Test
     fun formatRemaining_includesHoursMinutesAndSeconds() {
-        assertEquals("01 : 02 : 03", formatRemaining(3_723L))
+        assertEquals("01:02:03", formatRemaining(3_723L))
     }
 }

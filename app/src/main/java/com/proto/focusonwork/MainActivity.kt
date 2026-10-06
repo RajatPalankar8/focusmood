@@ -40,8 +40,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxSize
@@ -250,7 +248,7 @@ fun FocusOnWorkApp() {
                     onBack = { showHistory = false },
                     modifier = Modifier.weight(1f)
                 )
-                BannerAd(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
+                BannerAd()
             }
         }
         return
@@ -274,10 +272,10 @@ fun FocusOnWorkApp() {
                     },
                     modifier = Modifier.weight(1f)
                 )
-                BannerAd(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
+                BannerAd()
             }
         } else {
-            Column(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
             DashboardScreen(
                 selectedDuration = selectedDuration,
                 selectedApps = selectedApps,
@@ -329,7 +327,7 @@ fun FocusOnWorkApp() {
                 onOpenHistory = { showHistory = true },
                 modifier = Modifier.weight(1f)
             )
-            BannerAd(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
+            BannerAd()
             }
         }
     }
@@ -563,7 +561,7 @@ private fun AppPickerDialog(
                     PickerEmptyState("No matching apps", "Try another app name or package name.")
                 } else {
                     Text("INSTALLED APPS  ·  ${filteredApps.size}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    LazyColumn(state = appListState, modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    LazyColumn(state = appListState, modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(filteredApps, key = { it.packageName }) { app ->
                             val isSelected = app.packageName in draftSelection
                             Surface(
@@ -659,7 +657,7 @@ private fun TimerCard(minutes: Int) {
                 Spacer(Modifier.height(10.dp))
                 Text("READY TO FOCUS", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = .9f), fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(6.dp))
-                Text(String.format("%02d : 00 : 00", minutes), fontSize = 42.sp, fontWeight = FontWeight.Light, color = Color.White)
+                Text(String.format("%02d:%02d:00", minutes / 60, minutes % 60), fontSize = 42.sp, fontWeight = FontWeight.Light, color = Color.White)
                 Text("A quiet space for meaningful work", color = Color.White.copy(alpha = .78f))
             }
         }

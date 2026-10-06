@@ -9,5 +9,5 @@ fun formatRemaining(seconds: Long): String {
     val hours = seconds / 3_600
     val minutes = (seconds % 3_600) / 60
     val remainingSeconds = seconds % 60
-    return "%02d : %02d : %02d".format(hours, minutes, remainingSeconds)
+    return "%02d:%02d:%02d".format(hours, minutes, remainingSeconds)
 }
