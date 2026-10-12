@@ -46,6 +46,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -109,6 +110,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
@@ -408,7 +410,7 @@ fun FocusOnWorkApp() {
                 onOpenHistory = { showHistory = true },
                 modifier = Modifier.weight(1f)
             )
-            BannerAd()
+            BannerAd(Modifier.padding(top = 6.dp, bottom = 2.dp))
             }
         }
     }
@@ -689,48 +691,82 @@ private fun DashboardScreen(
     onOpenHistory: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val greeting = remember {
+        when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
+            in 5..11 -> "Good morning ☀️"
+            in 12..16 -> "Good afternoon 🌤️"
+            in 17..21 -> "Good evening 🌙"
+            else -> "Late focus session 🌌"
+        }
+    }
+
     Column(
-        modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Spacer(Modifier.height(2.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("FOCUS ON WORK", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                Text("Make room for\nwhat matters.", style = MaterialTheme.typography.headlineSmall)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Surface(
+                    shape = CircleShape,
+                    color = FocusIndigo.copy(alpha = 0.10f)
+                ) {
+                    Text(
+                        greeting,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = FocusIndigo,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(Modifier.height(1.dp))
+                Text(
+                    "Make room for what matters.",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.ExtraBold
+                )
             }
             IconButton(
                 onClick = onOpenHistory,
                 modifier = Modifier.semantics { contentDescription = "Open history and analysis" }
             ) {
-                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
-                    Canvas(Modifier.padding(12.dp).size(22.dp)) {
-                        val strokeWidth = size.width * 0.1f
-                        val baseline = size.height * 0.86f
-                        val axisColor = FocusIndigo
-                        drawLine(
-                            color = axisColor,
-                            start = Offset(size.width * 0.12f, size.height * 0.08f),
-                            end = Offset(size.width * 0.12f, baseline),
-                            strokeWidth = strokeWidth
-                        )
-                        drawLine(
-                            color = axisColor,
-                            start = Offset(size.width * 0.12f, baseline),
-                            end = Offset(size.width * 0.94f, baseline),
-                            strokeWidth = strokeWidth
-                        )
-                        val points = listOf(
-                            Offset(size.width * 0.28f, size.height * 0.64f),
-                            Offset(size.width * 0.50f, size.height * 0.43f),
-                            Offset(size.width * 0.70f, size.height * 0.53f),
-                            Offset(size.width * 0.91f, size.height * 0.20f)
-                        )
-                        points.zipWithNext().forEach { (start, end) ->
-                            drawLine(axisColor, start, end, strokeWidth, cap = StrokeCap.Round)
-                        }
-                        points.forEach { point ->
-                            drawCircle(axisColor, radius = strokeWidth * 1.15f, center = point)
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.size(42.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Canvas(Modifier.size(20.dp)) {
+                            val strokeWidth = size.width * 0.1f
+                            val baseline = size.height * 0.86f
+                            val axisColor = FocusIndigo
+                            drawLine(
+                                color = axisColor,
+                                start = Offset(size.width * 0.12f, size.height * 0.08f),
+                                end = Offset(size.width * 0.12f, baseline),
+                                strokeWidth = strokeWidth
+                            )
+                            drawLine(
+                                color = axisColor,
+                                start = Offset(size.width * 0.12f, baseline),
+                                end = Offset(size.width * 0.94f, baseline),
+                                strokeWidth = strokeWidth
+                            )
+                            val points = listOf(
+                                Offset(size.width * 0.28f, size.height * 0.64f),
+                                Offset(size.width * 0.50f, size.height * 0.43f),
+                                Offset(size.width * 0.70f, size.height * 0.53f),
+                                Offset(size.width * 0.91f, size.height * 0.20f)
+                            )
+                            points.zipWithNext().forEach { (start, end) ->
+                                drawLine(axisColor, start, end, strokeWidth, cap = StrokeCap.Round)
+                            }
+                            points.forEach { point ->
+                                drawCircle(axisColor, radius = strokeWidth * 1.15f, center = point)
+                            }
                         }
                     }
                 }
@@ -739,65 +775,149 @@ private fun DashboardScreen(
 
         TimerCard(selectedDuration)
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Choose your focus", style = MaterialTheme.typography.titleMedium)
-                Text("A small commitment is a good start.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Select Focus Duration", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Choose how long to pause distractions", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Text(
+                        if (selectedDuration < 60) "${selectedDuration} mins" else "${selectedDuration / 60} hour${if (selectedDuration >= 120) "s" else ""}",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
             }
-            Text(if (selectedDuration < 60) "${selectedDuration}m" else "${selectedDuration / 60}h", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-        }
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(listOf(2, 5, 10, 15, 25, 45, 60, 120)) { minutes ->
-                FilterChip(
-                    selected = selectedDuration == minutes,
-                    onClick = { onDurationSelected(minutes) },
-                    label = { Text(if (minutes >= 60) "${minutes / 60}h" else "${minutes}m") }
-                )
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(listOf(2, 5, 10, 15, 25, 45, 60, 120)) { minutes ->
+                    val isSelected = selectedDuration == minutes
+                    Surface(
+                        onClick = { onDurationSelected(minutes) },
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (isSelected) FocusIndigo else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                when (minutes) {
+                                    25 -> "25m 🍅"
+                                    45 -> "45m 🎯"
+                                    60 -> "1h ⏳"
+                                    120 -> "2h 🚀"
+                                    else -> "${minutes}m"
+                                },
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
+                    }
+                }
             }
         }
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = FocusLavender)
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
         ) {
-            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("APPS TO PAUSE", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                        Text("${if (selectedApps == 1) "1 app" else "$selectedApps apps"} selected", style = MaterialTheme.typography.titleLarge)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                        Text("APPS TO PAUSE", style = MaterialTheme.typography.labelSmall, color = FocusIndigo, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+                        Text(
+                            if (selectedApps == 0) "No apps selected" else "${if (selectedApps == 1) "1 app" else "$selectedApps apps"} protected",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
-                    OutlinedButton(onClick = onSelectApps, shape = RoundedCornerShape(16.dp)) {
-                        Text(if (selectedApps == 0) "Choose apps" else "Edit list")
+                    Button(
+                        onClick = onSelectApps,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = FocusIndigo),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(if (selectedApps == 0) "Choose Apps" else "Edit List", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
                     }
                 }
                 if (selectedAppNames.isNotEmpty()) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        selectedAppNames.take(3).forEach { app -> AppPill(app) }
-                        if (selectedApps > 3) AppPill("+${selectedApps - 3}")
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(selectedAppNames) { app ->
+                            AppPill(app)
+                        }
                     }
                 } else {
-                    Text("Choose apps that usually pull your attention away.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "Pick the social or gaming apps that usually pull your attention away during work.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
 
-        Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .55f)) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Emergency PIN", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        Surface(
+            shape = RoundedCornerShape(18.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("🛡️", fontSize = 18.sp)
+                    Column {
+                        Text("Emergency PIN", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            if (pinConfigured) "PIN configured for early exit" else "Required to end session early",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
                 TextButton(onClick = onConfigurePin) {
-                    Text(if (pinConfigured) "••••  Ready" else "Set up", color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        if (pinConfigured) "•••• Ready" else "Set Up",
+                        color = FocusIndigo,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
+
+        NativeAdBanner()
 
         Button(
             onClick = onStartFocus,
-            modifier = Modifier.fillMaxWidth().height(54.dp),
-            shape = RoundedCornerShape(18.dp)
-        ) { Text("START FOCUS", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium) }
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            shape = RoundedCornerShape(18.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = FocusIndigo)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("✦", fontSize = 16.sp, color = Color.White)
+                Text("START FOCUS", fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium, letterSpacing = 1.sp)
+            }
+        }
 
-        Spacer(Modifier.height(2.dp))
+        Spacer(Modifier.height(4.dp))
     }
 }
 
@@ -823,14 +943,14 @@ private fun AppPickerDialog(
         containerColor = MaterialTheme.colorScheme.surface,
         properties = DialogProperties(usePlatformDefaultWidth = false),
         title = {
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Choose your distractions", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text("Pick the apps you want to pause during focus.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Select the apps you want paused while focusing.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         text = {
             Column(
-                Modifier.fillMaxWidth().heightIn(max = 600.dp).imePadding().verticalScroll(rememberScrollState()),
+                Modifier.fillMaxWidth().heightIn(max = 580.dp).imePadding(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 OutlinedTextField(
@@ -840,23 +960,27 @@ private fun AppPickerDialog(
                     singleLine = true,
                     shape = RoundedCornerShape(18.dp),
                     label = { Text("Search apps") },
-                    leadingIcon = { Text("⌕", fontSize = 22.sp, color = MaterialTheme.colorScheme.primary) },
+                    leadingIcon = { Text("⌕", fontSize = 22.sp, color = FocusIndigo) },
                     trailingIcon = if (query.isNotEmpty()) ({
                         IconButton(onClick = { query = "" }) { Text("×", fontSize = 22.sp) }
                     }) else null,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { })
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search)
                 )
                 Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
+                    color = FocusIndigo.copy(alpha = 0.12f),
                     shape = RoundedCornerShape(16.dp)
                 ) {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Column(Modifier.weight(1f)) {
-                            Text("${draftSelection.size} selected", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                            Text("Changes apply when you tap Save", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = .8f))
+                            Text("${draftSelection.size} apps selected", fontWeight = FontWeight.Bold, color = FocusIndigo)
+                            Text("Will be blocked during active focus", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        if (draftSelection.isNotEmpty()) TextButton(onClick = { draftSelection = emptySet() }) { Text("Clear all") }
+                        if (draftSelection.isNotEmpty()) {
+                            TextButton(onClick = { draftSelection = emptySet() }) { Text("Clear all", color = FocusIndigo) }
+                        }
                     }
                 }
                 if (selectedApps.isNotEmpty()) {
@@ -865,25 +989,29 @@ private fun AppPickerDialog(
                             Surface(
                                 onClick = { draftSelection = draftSelection - app.packageName },
                                 shape = CircleShape,
-                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                color = MaterialTheme.colorScheme.surfaceVariant,
                                 modifier = Modifier.semantics { contentDescription = "Remove ${app.label} from selected apps" }
                             ) {
-                                Row(Modifier.padding(start = 10.dp, end = 12.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    AppIcon(icon = app.icon, size = 24.dp)
-                                    Text(app.label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                                    Text("×", color = MaterialTheme.colorScheme.onSecondaryContainer, fontWeight = FontWeight.Bold)
+                                Row(
+                                    Modifier.padding(start = 10.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    AppIcon(icon = app.icon, size = 22.dp)
+                                    Text(app.label, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                                    Text("×", fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
                     }
                 }
                 if (apps.isEmpty()) {
-                    PickerEmptyState("No launchable apps found", "Install an app with a launcher icon and it will appear here.")
+                    PickerEmptyState("No apps found", "No launchable apps were found on this device.")
                 } else if (filteredApps.isEmpty()) {
-                    PickerEmptyState("No matching apps", "Try another app name or package name.")
+                    PickerEmptyState("No matching apps", "Try typing another app name.")
                 } else {
-                    Text("INSTALLED APPS  ·  ${filteredApps.size}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    LazyColumn(state = appListState, modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("INSTALLED APPS • ${filteredApps.size}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+                    LazyColumn(state = appListState, modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(filteredApps, key = { it.packageName }) { app ->
                             val isSelected = app.packageName in draftSelection
                             Surface(
@@ -891,20 +1019,27 @@ private fun AppPickerDialog(
                                     draftSelection = if (isSelected) draftSelection - app.packageName else draftSelection + app.packageName
                                 },
                                 shape = RoundedCornerShape(18.dp),
-                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .45f),
+                                color = if (isSelected) FocusIndigo.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                                 modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {
                                     contentDescription = "${app.label}, ${if (isSelected) "selected" else "not selected"}"
                                 }
                             ) {
-                                Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    AppIcon(icon = app.icon, size = 42.dp)
+                                Row(
+                                    Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    AppIcon(icon = app.icon, size = 40.dp)
                                     Column(Modifier.weight(1f)) {
-                                        Text(app.label, style = MaterialTheme.typography.bodyLarge, fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
-                                        Text(if (isSelected) "Added to focus list" else "Tap to add", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(app.label, style = MaterialTheme.typography.bodyLarge, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
+                                        Text(if (isSelected) "Selected for focus" else "Tap to select", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
-                                    Checkbox(checked = isSelected, onCheckedChange = { checked ->
-                                        draftSelection = if (checked) draftSelection + app.packageName else draftSelection - app.packageName
-                                    })
+                                    Checkbox(
+                                        checked = isSelected,
+                                        onCheckedChange = { checked ->
+                                            draftSelection = if (checked) draftSelection + app.packageName else draftSelection - app.packageName
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -913,8 +1048,12 @@ private fun AppPickerDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onApplySelection(draftSelection); onDismiss() }, shape = RoundedCornerShape(18.dp)) {
-                Text("Save ${draftSelection.size} apps")
+            Button(
+                onClick = { onApplySelection(draftSelection); onDismiss() },
+                shape = RoundedCornerShape(18.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = FocusIndigo)
+            ) {
+                Text("Save ${draftSelection.size} Apps", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
@@ -926,7 +1065,7 @@ private fun AppPickerDialog(
 @Composable
 private fun PickerEmptyState(title: String, message: String) {
     Column(Modifier.fillMaxWidth().padding(vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("✦", fontSize = 28.sp, color = MaterialTheme.colorScheme.primary)
+        Text("✦", fontSize = 28.sp, color = FocusIndigo)
         Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
     }
@@ -952,7 +1091,7 @@ private fun AppIcon(icon: Drawable, size: Dp = 40.dp) {
 private fun TimerCard(minutes: Int) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(30.dp),
+        shape = RoundedCornerShape(32.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Box(
@@ -965,22 +1104,36 @@ private fun TimerCard(minutes: Int) {
                 )
         ) {
             Canvas(Modifier.matchParentSize()) {
-                drawCircle(Color.White.copy(alpha = .10f), radius = 170f, center = Offset(size.width * .92f, size.height * .08f))
-                drawCircle(FocusAmber.copy(alpha = .25f), radius = 90f, center = Offset(size.width * .10f, size.height * .92f))
+                drawCircle(Color.White.copy(alpha = .12f), radius = 180f, center = Offset(size.width * .90f, size.height * .10f))
+                drawCircle(FocusAmber.copy(alpha = .20f), radius = 100f, center = Offset(size.width * .08f, size.height * .90f))
             }
             Column(
-                Modifier.padding(vertical = 30.dp).fillMaxWidth(),
+                Modifier.padding(vertical = 18.dp, horizontal = 16.dp).fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(
-                    modifier = Modifier.size(54.dp).clip(CircleShape).background(Color.White.copy(alpha = .18f)),
-                    contentAlignment = Alignment.Center
-                ) { Text("✦", color = Color.White, fontSize = 28.sp) }
-                Spacer(Modifier.height(10.dp))
-                Text("READY TO FOCUS", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = .9f), fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(6.dp))
-                Text(String.format("%02d:%02d:00", minutes / 60, minutes % 60), fontSize = 42.sp, fontWeight = FontWeight.Light, color = Color.White)
-                Text("A quiet space for meaningful work", color = Color.White.copy(alpha = .78f))
+                Surface(
+                    shape = CircleShape,
+                    color = Color.White.copy(alpha = 0.2f)
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text("✦", color = Color.White, fontSize = 12.sp)
+                        Text("READY TO FOCUS", style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    String.format("%02d:%02d:00", minutes / 60, minutes % 60),
+                    fontSize = 38.sp,
+                    fontWeight = FontWeight.ExtraLight,
+                    color = Color.White,
+                    letterSpacing = 2.sp
+                )
+                Spacer(Modifier.height(2.dp))
+                Text("A quiet space for meaningful work", color = Color.White.copy(alpha = .82f), style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -988,8 +1141,16 @@ private fun TimerCard(minutes: Int) {
 
 @Composable
 private fun AppPill(name: String) {
-    Surface(shape = CircleShape, color = Color.White.copy(alpha = .8f)) {
-        Text(name, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium, color = FocusIndigo)
+    Surface(shape = CircleShape, color = FocusIndigo.copy(alpha = 0.12f)) {
+        Text(
+            text = name,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = FocusIndigo,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -1002,35 +1163,53 @@ private fun ActiveSessionScreen(
     modifier: Modifier = Modifier
 ) {
     val progress = if (totalSeconds > 0) secondsRemaining.toFloat() / totalSeconds.toFloat() else 0f
-    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+    Column(
+        modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
         Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
-            Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF16865C)))
-                Text("  FOCUS IS RUNNING", color = MaterialTheme.colorScheme.onSecondaryContainer, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(Modifier.size(10.dp).clip(CircleShape).background(Color(0xFF10B981)))
+                Text("FOCUS IS RUNNING", color = MaterialTheme.colorScheme.onSecondaryContainer, fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.labelMedium, letterSpacing = 1.sp)
             }
         }
-        Spacer(Modifier.height(20.dp))
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(290.dp)) {
+        Spacer(Modifier.height(28.dp))
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(280.dp)) {
             Canvas(Modifier.fillMaxSize()) {
-                drawCircle(Color(0xFFE0E7FF), style = Stroke(width = 24f))
+                drawCircle(Color(0xFFE0E7FF), style = Stroke(width = 20f))
                 drawArc(
                     brush = Brush.sweepGradient(listOf(FocusIndigo, FocusViolet, FocusPink)),
                     startAngle = -90f,
                     sweepAngle = 360f * progress,
                     useCenter = false,
-                    style = Stroke(width = 24f, cap = StrokeCap.Round)
+                    style = Stroke(width = 20f, cap = StrokeCap.Round)
                 )
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(formatRemaining(secondsRemaining), fontSize = 38.sp, fontWeight = FontWeight.Bold, color = FocusIndigo)
-                Text("remaining", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(formatRemaining(secondsRemaining), fontSize = 42.sp, fontWeight = FontWeight.Bold, color = FocusIndigo, letterSpacing = 1.sp)
+                Spacer(Modifier.height(2.dp))
+                Text("time remaining", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             }
         }
         Spacer(Modifier.height(28.dp))
         Text("Your attention is protected", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-        Text("$blockedApps apps silenced", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(36.dp))
-        TextButton(onClick = onEndSession) { Text("End session") }
+        Spacer(Modifier.height(4.dp))
+        Surface(
+            shape = CircleShape,
+            color = FocusIndigo.copy(alpha = 0.1f)
+        ) {
+            Text("$blockedApps apps silenced", modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp), color = FocusIndigo, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+        }
+        Spacer(Modifier.height(28.dp))
+        OutlinedButton(
+            onClick = onEndSession,
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+        ) {
+            Text("End Session", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+        }
+        Spacer(Modifier.height(16.dp))
         NativeAdBanner()
     }
 }
