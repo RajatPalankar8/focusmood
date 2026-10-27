@@ -2,17 +2,18 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.google.services)
 }
 
 android {
-    namespace = "com.proto.focusonwork"
+    namespace = "com.proto.focusshieldwork"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "com.proto.focusonwork"
-        minSdk = 26
+        applicationId = "com.proto.focusshieldwork"
+        minSdk = 27
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
@@ -50,6 +51,8 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.play.services.ads)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.analytics)
     ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "7384312257",
+    "project_id": "focus-on-work-c6a36",
+    "storage_bucket": "focus-on-work-c6a36.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:7384312257:android:83cc70f6bc915cca7f2740",
+        "android_client_info": {
+          "package_name": "com.proto.focusshieldwork"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAU4kFTSdNNZKHB_byyVxxn13wvzI5nBhQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
