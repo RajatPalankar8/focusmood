@@ -39,6 +39,7 @@ androidx-datastore-preferences = { group = "androidx.datastore", name = "datasto
 play-services-ads = { group = "com.google.android.gms", name = "play-services-ads", version.ref = "admob" }
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics" }
+firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
